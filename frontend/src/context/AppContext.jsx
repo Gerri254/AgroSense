@@ -1,0 +1,291 @@
+/* eslint-disable react-refresh/only-export-components */
+import { createContext, useContext, useState, useEffect } from 'react';
+import mqttService from '../services/mqttService';
+import { MQTT_CONFIG } from '../config/mqttConfig';
+
+const AppContext = createContext();
+
+export const useApp = () => {
+  const context = useContext(AppContext);
+  if (!context) {
+    throw new Error('useApp must be used within AppProvider');
+  }
+  return context;
+};
+
+export const AppProvider = ({ children }) => {
+  // Authentication state
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [user, setUser] = useState(null);
+
+  // MQTT connection state
+  const [mqttConnected, setMqttConnected] = useState(false);
+
+  // Device status
+  const [deviceOnline, setDeviceOnline] = useState(false);
+  const [lastSeen, setLastSeen] = useState(null);
+
+  // Sensor data
+  const [sensorData, setSensorData] = useState({
+    soilMoisture: 0,
+    temperature: 0,
+    humidity: 0,
+    waterLevel: 0,
+    timestamp: null
+  });
+
+  // Actuator status
+  const [actuatorStatus, setActuatorStatus] = useState({
+    waterPump: { status: false, mode: 'auto' },
+    coolingFan: { status: false, mode: 'auto' }
+  });
+
+  // Alerts
+  const [alerts, setAlerts] = useState([]);
+  const [lastAlert, setLastAlert] = useState(null);
+
+  // Configuration/Thresholds
+  const [config, setConfig] = useState(MQTT_CONFIG.DEFAULT_THRESHOLDS);
+
+  // Historical data (mock for now - would come from backend/localStorage)
+  const [historicalData, setHistoricalData] = useState([]);
+
+  // Action logs
+  const [actionLogs, setActionLogs] = useState([]);
+
+  // Initialize MQTT connection
+  useEffect(() => {
+    if (isAuthenticated) {
+      connectToMQTT();
+    }
+
+    return () => {
+      mqttService.disconnect();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated]);
+
+  const connectToMQTT = () => {
+    mqttService.connect(MQTT_CONFIG.BROKER_URL, MQTT_CONFIG.OPTIONS);
+
+    // Subscribe to connection status
+    mqttService.subscribe('connection', (data) => {
+      setMqttConnected(data.connected);
+    });
+
+    // Subscribe to sensor data
+    mqttService.subscribe(MQTT_CONFIG.TOPICS.SENSORS, (data) => {
+      setSensorData({
+        soilMoisture: data.soilMoisture || 0,
+        temperature: data.temperature || 0,
+        humidity: data.humidity || 0,
+        waterLevel: data.waterLevel || 0,
+        timestamp: new Date()
+      });
+
+      setDeviceOnline(true);
+      setLastSeen(new Date());
+
+      // Add to historical data
+      addToHistoricalData(data);
+    });
+
+    // Subscribe to actuator status
+    mqttService.subscribe(MQTT_CONFIG.TOPICS.ACTUATORS, (data) => {
+      setActuatorStatus({
+        waterPump: data.waterPump || { status: false, mode: 'auto' },
+        coolingFan: data.coolingFan || { status: false, mode: 'auto' }
+      });
+    });
+
+    // Subscribe to device status
+    mqttService.subscribe(MQTT_CONFIG.TOPICS.DEVICE_STATUS, (data) => {
+      setDeviceOnline(data.online);
+      setLastSeen(new Date(data.lastSeen));
+    });
+
+    // Subscribe to alerts
+    mqttService.subscribe(MQTT_CONFIG.TOPICS.ALERTS, (data) => {
+      const newAlert = {
+        id: Date.now(),
+        ...data,
+        timestamp: new Date()
+      };
+      setAlerts(prev => [newAlert, ...prev].slice(0, 50)); // Keep last 50 alerts
+      setLastAlert(newAlert);
+    });
+  };
+
+  const addToHistoricalData = (data) => {
+    const newDataPoint = {
+      timestamp: new Date().toISOString(),
+      ...data
+    };
+
+    setHistoricalData(prev => {
+      const updated = [...prev, newDataPoint].slice(-1000);
+
+      // Store in localStorage
+      try {
+        localStorage.setItem('historicalData', JSON.stringify(updated));
+      } catch (error) {
+        console.error('Failed to save historical data:', error);
+      }
+
+      return updated;
+    });
+  };
+
+  // Load historical data from localStorage on mount
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('historicalData');
+      if (stored) {
+        setHistoricalData(JSON.parse(stored));
+      }
+    } catch (error) {
+      console.error('Failed to load historical data:', error);
+    }
+
+    const storedLogs = localStorage.getItem('actionLogs');
+    if (storedLogs) {
+      try {
+        setActionLogs(JSON.parse(storedLogs));
+      } catch (error) {
+        console.error('Failed to load action logs:', error);
+      }
+    }
+  }, []);
+
+  // Control actuators
+  const controlPump = (status, mode = 'manual') => {
+    const command = { device: 'pump', status, mode, timestamp: new Date().toISOString() };
+    mqttService.publish(MQTT_CONFIG.TOPICS.PUMP_COMMAND, command);
+
+    // Add to action log
+    addActionLog({
+      action: status ? 'Pump turned ON' : 'Pump turned OFF',
+      trigger: mode,
+      timestamp: new Date()
+    });
+  };
+
+  const controlFan = (status, mode = 'manual') => {
+    const command = { device: 'fan', status, mode, timestamp: new Date().toISOString() };
+    mqttService.publish(MQTT_CONFIG.TOPICS.FAN_COMMAND, command);
+
+    // Add to action log
+    addActionLog({
+      action: status ? 'Fan turned ON' : 'Fan turned OFF',
+      trigger: mode,
+      timestamp: new Date()
+    });
+  };
+
+  const updateConfig = (newConfig) => {
+    setConfig(newConfig);
+    mqttService.publish(MQTT_CONFIG.TOPICS.CONFIG_UPDATE, newConfig);
+
+    // Save to localStorage
+    localStorage.setItem('config', JSON.stringify(newConfig));
+
+    // Add to action log
+    addActionLog({
+      action: 'Configuration updated',
+      trigger: 'manual',
+      details: newConfig,
+      timestamp: new Date()
+    });
+  };
+
+  const addActionLog = (log) => {
+    const newLog = { id: Date.now(), ...log };
+    setActionLogs(prev => {
+      const updated = [newLog, ...prev].slice(0, 100); // Keep last 100 logs
+      localStorage.setItem('actionLogs', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  // Login function
+  const login = (username, password) => {
+    // Simple mock authentication - replace with real authentication
+    if (username === 'admin' && password === 'admin123') {
+      setIsAuthenticated(true);
+      setUser({ username, role: 'admin' });
+      localStorage.setItem('user', JSON.stringify({ username, role: 'admin' }));
+      return true;
+    }
+    return false;
+  };
+
+  // Logout function
+  const logout = () => {
+    setIsAuthenticated(false);
+    setUser(null);
+    localStorage.removeItem('user');
+    mqttService.disconnect();
+  };
+
+  // Check for stored user on mount
+  useEffect(() => {
+    const storedUser = localStorage.getItem('user');
+    if (storedUser) {
+      try {
+        const userData = JSON.parse(storedUser);
+        setUser(userData);
+        setIsAuthenticated(true);
+      } catch (error) {
+        console.error('Failed to parse stored user:', error);
+      }
+    }
+
+    const storedConfig = localStorage.getItem('config');
+    if (storedConfig) {
+      try {
+        setConfig(JSON.parse(storedConfig));
+      } catch (error) {
+        console.error('Failed to parse stored config:', error);
+      }
+    }
+  }, []);
+
+  const value = {
+    // Auth
+    isAuthenticated,
+    user,
+    login,
+    logout,
+
+    // MQTT
+    mqttConnected,
+
+    // Device
+    deviceOnline,
+    lastSeen,
+
+    // Sensor data
+    sensorData,
+
+    // Actuators
+    actuatorStatus,
+    controlPump,
+    controlFan,
+
+    // Alerts
+    alerts,
+    lastAlert,
+
+    // Config
+    config,
+    updateConfig,
+
+    // Historical data
+    historicalData,
+
+    // Action logs
+    actionLogs
+  };
+
+  return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
+};
