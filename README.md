@@ -33,10 +33,11 @@ ESP8266 Sensors → MQTT Broker → Backend API → Web Dashboard
   - Cooling Fan (relay controlled)
 
 ### Software Stack
-- **Backend**: Node.js, Express, MQTT.js
-- **Frontend**: React, Tailwind CSS, Chart.js
-- **Database**: MongoDB/PostgreSQL
-- **Protocol**: MQTT over TCP/WebSocket
+- **Backend**: Node.js, Express, MQTT.js, Socket.io
+- **Frontend**: React, Tailwind CSS, Recharts
+- **Database**: MongoDB (with time-series optimization)
+- **MQTT Broker**: HiveMQ Cloud
+- **Protocol**: MQTT over TCP, WebSocket for real-time updates
 
 ## 📋 Development Progress
 
@@ -59,27 +60,47 @@ node task-logger.js summary
 
 ### Prerequisites
 - Node.js (v16+)
-- MongoDB or PostgreSQL
-- MQTT Broker (Mosquitto recommended)
+- MongoDB (local or MongoDB Atlas)
+- HiveMQ Cloud account (or other MQTT broker)
 - ESP8266 with Arduino IDE
 
-### Installation
+### Backend Setup
 
 ```bash
-# Clone the repository
-git clone <repository-url>
-cd "Lwiki Project"
+# Navigate to backend directory
+cd backend
 
 # Install dependencies
 npm install
 
 # Configure environment variables
 cp .env.example .env
-# Edit .env with your settings
+# Edit .env with your HiveMQ and MongoDB credentials
+
+# Start backend server
+npm run dev
+```
+
+See [backend/QUICKSTART.md](backend/QUICKSTART.md) for detailed setup instructions.
+
+### Frontend Setup
+
+```bash
+# Navigate to frontend directory
+cd frontend
+
+# Install dependencies
+npm install
 
 # Start development server
 npm run dev
 ```
+
+### ESP8266 Setup
+
+Your ESP8266 is already configured to publish to HiveMQ Cloud. Make sure the topic in your Arduino code matches the backend configuration.
+
+See [BACKEND_SETUP_COMPLETE.md](BACKEND_SETUP_COMPLETE.md) for complete integration guide.
 
 ## 📱 Functional Requirements
 
@@ -140,5 +161,33 @@ Development tracked through task logger system. See [DEVELOPMENT_LOG.md](./DEVEL
 
 ---
 
-**Project Status**: 🟡 In Development
-**Last Updated**: 2025-10-29
+## 📚 Documentation
+
+- [Backend Setup Guide](BACKEND_SETUP_COMPLETE.md) - Complete backend implementation
+- [Backend Quick Start](backend/QUICKSTART.md) - Step-by-step backend setup
+- [Backend API Documentation](backend/README.md) - Full API reference
+- [Frontend Documentation](frontend/README.md) - Frontend implementation details
+
+## 🎯 Project Structure
+
+```
+Lwiki Project/
+├── backend/              # Node.js backend server
+│   ├── models/          # MongoDB schemas
+│   ├── routes/          # API endpoints
+│   ├── services/        # MQTT and WebSocket services
+│   ├── server.js        # Main server file
+│   └── README.md        # Backend documentation
+├── frontend/            # React dashboard
+│   ├── src/
+│   │   ├── components/  # React components
+│   │   ├── context/     # State management
+│   │   └── services/    # API services
+│   └── package.json
+└── BACKEND_SETUP_COMPLETE.md  # Integration guide
+```
+
+---
+
+**Project Status**: 🟢 Backend Complete, Frontend Ready
+**Last Updated**: 2025-11-02

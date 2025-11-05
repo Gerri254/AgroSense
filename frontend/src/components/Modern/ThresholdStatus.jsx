@@ -9,7 +9,7 @@ const ThresholdStatus = () => {
       id: 'soil',
       title: 'Soil Moisture',
       current: sensorData.soilMoisture,
-      target: `${config.soilMoisture.min}-${config.soilMoisture.max}%`,
+      target: `Min: ${config.minSoilMoisture}%`,
       unit: '%',
       icon: Droplets,
       className: 'threshold-card-large'
@@ -18,7 +18,7 @@ const ThresholdStatus = () => {
       id: 'temp',
       title: 'Temperature',
       current: sensorData.temperature,
-      target: `Max: ${config.temperature.max}°C`,
+      target: `Max: ${config.maxTemperature}°C`,
       unit: '°C',
       icon: Thermometer,
       className: 'threshold-card-medium'
@@ -27,7 +27,7 @@ const ThresholdStatus = () => {
       id: 'water',
       title: 'Water Level',
       current: sensorData.waterLevel,
-      target: `Min: ${config.waterLevel.min}%`,
+      target: `Min: ${config.minWaterLevel}%`,
       unit: '%',
       icon: Waves,
       className: 'threshold-card-small'

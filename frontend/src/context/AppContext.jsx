@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useState, useEffect } from 'react';
-import mqttService from '../services/mqttService';
-import { MQTT_CONFIG } from '../config/mqttConfig';
+import apiService from '../services/apiService';
+import socketService from '../services/socketService';
 
 const AppContext = createContext();
 
@@ -18,8 +18,8 @@ export const AppProvider = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState(null);
 
-  // MQTT connection state
-  const [mqttConnected, setMqttConnected] = useState(false);
+  // Backend connection state
+  const [backendConnected, setBackendConnected] = useState(false);
 
   // Device status
   const [deviceOnline, setDeviceOnline] = useState(false);
@@ -45,7 +45,14 @@ export const AppProvider = ({ children }) => {
   const [lastAlert, setLastAlert] = useState(null);
 
   // Configuration/Thresholds
-  const [config, setConfig] = useState(MQTT_CONFIG.DEFAULT_THRESHOLDS);
+  const [config, setConfig] = useState({
+    minSoilMoisture: 30,
+    maxSoilMoisture: 70,
+    minTemperature: 15,
+    maxTemperature: 35,
+    minWaterLevel: 20,
+    maxHumidity: 80
+  });
 
   // Historical data (mock for now - would come from backend/localStorage)
   const [historicalData, setHistoricalData] = useState([]);
@@ -53,67 +60,125 @@ export const AppProvider = ({ children }) => {
   // Action logs
   const [actionLogs, setActionLogs] = useState([]);
 
-  // Initialize MQTT connection
+  // Initialize backend connection
   useEffect(() => {
     if (isAuthenticated) {
-      connectToMQTT();
+      connectToBackend();
     }
 
     return () => {
-      mqttService.disconnect();
+      socketService.disconnect();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated]);
 
-  const connectToMQTT = () => {
-    mqttService.connect(MQTT_CONFIG.BROKER_URL, MQTT_CONFIG.OPTIONS);
+  const connectToBackend = async () => {
+    try {
+      // Check backend health
+      const health = await apiService.checkHealth();
+      console.log('✅ Backend health:', health);
+      setBackendConnected(health.status === 'OK');
 
-    // Subscribe to connection status
-    mqttService.subscribe('connection', (data) => {
-      setMqttConnected(data.connected);
-    });
+      // Connect to WebSocket
+      socketService.connect();
 
-    // Subscribe to sensor data
-    mqttService.subscribe(MQTT_CONFIG.TOPICS.SENSORS, (data) => {
-      setSensorData({
-        soilMoisture: data.soilMoisture || 0,
-        temperature: data.temperature || 0,
-        humidity: data.humidity || 0,
-        waterLevel: data.waterLevel || 0,
-        timestamp: new Date()
+      // Subscribe to WebSocket events
+      socketService.on('connection', (data) => {
+        setBackendConnected(data.connected);
       });
 
-      setDeviceOnline(true);
-      setLastSeen(new Date());
+      // Subscribe to real-time sensor data
+      socketService.on('sensor-data', (data) => {
+        setSensorData({
+          soilMoisture: data.soilMoisture || 0,
+          temperature: data.temperature || 0,
+          humidity: data.humidity || 0,
+          waterLevel: data.waterLevel || 0,
+          timestamp: new Date(data.timestamp)
+        });
 
-      // Add to historical data
-      addToHistoricalData(data);
-    });
+        setDeviceOnline(true);
+        setLastSeen(new Date());
 
-    // Subscribe to actuator status
-    mqttService.subscribe(MQTT_CONFIG.TOPICS.ACTUATORS, (data) => {
-      setActuatorStatus({
-        waterPump: data.waterPump || { status: false, mode: 'auto' },
-        coolingFan: data.coolingFan || { status: false, mode: 'auto' }
+        // Add to historical data
+        addToHistoricalData(data);
       });
-    });
 
-    // Subscribe to device status
-    mqttService.subscribe(MQTT_CONFIG.TOPICS.DEVICE_STATUS, (data) => {
-      setDeviceOnline(data.online);
-      setLastSeen(new Date(data.lastSeen));
-    });
+      // Subscribe to actuator status
+      socketService.on('actuator-status', (data) => {
+        setActuatorStatus({
+          waterPump: data.waterPump || { status: false, mode: 'auto' },
+          coolingFan: data.coolingFan || { status: false, mode: 'auto' }
+        });
+      });
 
-    // Subscribe to alerts
-    mqttService.subscribe(MQTT_CONFIG.TOPICS.ALERTS, (data) => {
-      const newAlert = {
-        id: Date.now(),
-        ...data,
-        timestamp: new Date()
-      };
-      setAlerts(prev => [newAlert, ...prev].slice(0, 50)); // Keep last 50 alerts
-      setLastAlert(newAlert);
-    });
+      // Subscribe to device status
+      socketService.on('device-status', (data) => {
+        setDeviceOnline(data.online);
+        setLastSeen(new Date(data.lastSeen));
+      });
+
+      // Subscribe to alerts
+      socketService.on('alert', (alert) => {
+        const newAlert = {
+          id: alert._id || Date.now(),
+          ...alert,
+          timestamp: new Date(alert.timestamp)
+        };
+        setAlerts(prev => [newAlert, ...prev].slice(0, 50));
+        setLastAlert(newAlert);
+      });
+
+      // Load initial data from backend
+      await loadInitialData();
+
+    } catch (error) {
+      console.error('❌ Backend connection error:', error);
+      setBackendConnected(false);
+    }
+  };
+
+  const loadInitialData = async () => {
+    try {
+      // Load current sensor data
+      const currentData = await apiService.getCurrentSensorData();
+      if (currentData) {
+        setSensorData({
+          soilMoisture: currentData.soilMoisture || 0,
+          temperature: currentData.temperature || 0,
+          humidity: currentData.humidity || 0,
+          waterLevel: currentData.waterLevel || 0,
+          timestamp: new Date(currentData.timestamp)
+        });
+      }
+
+      // Load historical data
+      const historyResponse = await apiService.getSensorHistory({ limit: 100 });
+      if (historyResponse && historyResponse.data) {
+        setHistoricalData(historyResponse.data);
+      }
+
+      // Load latest alert
+      const latestAlert = await apiService.getLatestAlert();
+      if (latestAlert && latestAlert._id) {
+        setLastAlert(latestAlert);
+      }
+
+      // Load settings/thresholds
+      const settings = await apiService.getSettings();
+      if (settings && settings.thresholds) {
+        setConfig(settings.thresholds);
+      }
+
+      // Load action logs
+      const logsResponse = await apiService.getActuatorLogs({ limit: 50 });
+      if (logsResponse && logsResponse.data) {
+        setActionLogs(logsResponse.data);
+      }
+
+    } catch (error) {
+      console.error('Error loading initial data:', error);
+    }
   };
 
   const addToHistoricalData = (data) => {
@@ -157,66 +222,77 @@ export const AppProvider = ({ children }) => {
     }
   }, []);
 
-  // Control actuators
-  const controlPump = (status, mode = 'manual') => {
-    const command = { device: 'pump', status, mode, timestamp: new Date().toISOString() };
-    mqttService.publish(MQTT_CONFIG.TOPICS.PUMP_COMMAND, command);
+  // Control actuators via backend API
+  const controlPump = async (status, mode = 'manual') => {
+    try {
+      const response = await apiService.controlPump(status, mode);
+      console.log('🚰 Pump control response:', response);
 
-    // Add to action log
-    addActionLog({
-      action: status ? 'Pump turned ON' : 'Pump turned OFF',
-      trigger: mode,
-      timestamp: new Date()
-    });
+      // Update local state optimistically
+      setActuatorStatus(prev => ({
+        ...prev,
+        waterPump: { status, mode }
+      }));
+
+      return response;
+    } catch (error) {
+      console.error('Error controlling pump:', error);
+      throw error;
+    }
   };
 
-  const controlFan = (status, mode = 'manual') => {
-    const command = { device: 'fan', status, mode, timestamp: new Date().toISOString() };
-    mqttService.publish(MQTT_CONFIG.TOPICS.FAN_COMMAND, command);
+  const controlFan = async (status, mode = 'manual') => {
+    try {
+      const response = await apiService.controlFan(status, mode);
+      console.log('💨 Fan control response:', response);
 
-    // Add to action log
-    addActionLog({
-      action: status ? 'Fan turned ON' : 'Fan turned OFF',
-      trigger: mode,
-      timestamp: new Date()
-    });
+      // Update local state optimistically
+      setActuatorStatus(prev => ({
+        ...prev,
+        coolingFan: { status, mode }
+      }));
+
+      return response;
+    } catch (error) {
+      console.error('Error controlling fan:', error);
+      throw error;
+    }
   };
 
-  const updateConfig = (newConfig) => {
-    setConfig(newConfig);
-    mqttService.publish(MQTT_CONFIG.TOPICS.CONFIG_UPDATE, newConfig);
+  const updateConfig = async (newConfig) => {
+    try {
+      const response = await apiService.updateThresholds(newConfig);
+      console.log('⚙️  Config update response:', response);
 
-    // Save to localStorage
-    localStorage.setItem('config', JSON.stringify(newConfig));
+      setConfig(newConfig);
 
-    // Add to action log
-    addActionLog({
-      action: 'Configuration updated',
-      trigger: 'manual',
-      details: newConfig,
-      timestamp: new Date()
-    });
-  };
+      // Save to localStorage
+      localStorage.setItem('config', JSON.stringify(newConfig));
 
-  const addActionLog = (log) => {
-    const newLog = { id: Date.now(), ...log };
-    setActionLogs(prev => {
-      const updated = [newLog, ...prev].slice(0, 100); // Keep last 100 logs
-      localStorage.setItem('actionLogs', JSON.stringify(updated));
-      return updated;
-    });
+      return response;
+    } catch (error) {
+      console.error('Error updating config:', error);
+      throw error;
+    }
   };
 
   // Login function
-  const login = (username, password) => {
-    // Simple mock authentication - replace with real authentication
-    if (username === 'admin' && password === 'admin123') {
-      setIsAuthenticated(true);
-      setUser({ username, role: 'admin' });
-      localStorage.setItem('user', JSON.stringify({ username, role: 'admin' }));
-      return true;
+  const login = async (username, password) => {
+    try {
+      const response = await apiService.login(username, password);
+
+      if (response.success && response.user) {
+        setIsAuthenticated(true);
+        setUser(response.user);
+        localStorage.setItem('user', JSON.stringify(response.user));
+        return true;
+      }
+
+      return false;
+    } catch (error) {
+      console.error('Login error:', error);
+      return false;
     }
-    return false;
   };
 
   // Logout function
@@ -224,19 +300,25 @@ export const AppProvider = ({ children }) => {
     setIsAuthenticated(false);
     setUser(null);
     localStorage.removeItem('user');
-    mqttService.disconnect();
+    localStorage.removeItem('token');
+    socketService.disconnect();
   };
 
   // Check for stored user on mount
   useEffect(() => {
     const storedUser = localStorage.getItem('user');
-    if (storedUser) {
+    const token = localStorage.getItem('token');
+
+    if (storedUser && token) {
       try {
         const userData = JSON.parse(storedUser);
         setUser(userData);
         setIsAuthenticated(true);
       } catch (error) {
         console.error('Failed to parse stored user:', error);
+        // Clear invalid data
+        localStorage.removeItem('user');
+        localStorage.removeItem('token');
       }
     }
 
@@ -257,8 +339,8 @@ export const AppProvider = ({ children }) => {
     login,
     logout,
 
-    // MQTT
-    mqttConnected,
+    // Backend connection
+    backendConnected,
 
     // Device
     deviceOnline,

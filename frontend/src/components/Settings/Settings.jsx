@@ -16,9 +16,12 @@ const Settings = () => {
 
   const handleReset = () => {
     const defaultConfig = {
-      soilMoisture: { min: 30, max: 70 },
-      temperature: { min: 15, max: 35 },
-      waterLevel: { min: 20 }
+      minSoilMoisture: 30,
+      maxSoilMoisture: 70,
+      minTemperature: 15,
+      maxTemperature: 35,
+      minWaterLevel: 20,
+      maxHumidity: 80
     };
     setLocalConfig(defaultConfig);
   };
@@ -61,11 +64,11 @@ const Settings = () => {
                   type="number"
                   min="0"
                   max="100"
-                  value={localConfig.soilMoisture.min}
+                  value={localConfig.minSoilMoisture}
                   onChange={(e) =>
                     setLocalConfig({
                       ...localConfig,
-                      soilMoisture: { ...localConfig.soilMoisture, min: Number(e.target.value) }
+                      minSoilMoisture: Number(e.target.value)
                     })
                   }
                   className="input-field"
@@ -79,11 +82,11 @@ const Settings = () => {
                   type="number"
                   min="0"
                   max="100"
-                  value={localConfig.soilMoisture.max}
+                  value={localConfig.maxSoilMoisture || 70}
                   onChange={(e) =>
                     setLocalConfig({
                       ...localConfig,
-                      soilMoisture: { ...localConfig.soilMoisture, max: Number(e.target.value) }
+                      maxSoilMoisture: Number(e.target.value)
                     })
                   }
                   className="input-field"
@@ -94,8 +97,8 @@ const Settings = () => {
               <div
                 className="absolute h-2 bg-blue-500 rounded-full"
                 style={{
-                  left: `${localConfig.soilMoisture.min}%`,
-                  width: `${localConfig.soilMoisture.max - localConfig.soilMoisture.min}%`
+                  left: `${localConfig.minSoilMoisture}%`,
+                  width: `${(localConfig.maxSoilMoisture || 70) - localConfig.minSoilMoisture}%`
                 }}
               ></div>
             </div>
@@ -115,11 +118,11 @@ const Settings = () => {
                   type="number"
                   min="-50"
                   max="100"
-                  value={localConfig.temperature.min}
+                  value={localConfig.minTemperature || 15}
                   onChange={(e) =>
                     setLocalConfig({
                       ...localConfig,
-                      temperature: { ...localConfig.temperature, min: Number(e.target.value) }
+                      minTemperature: Number(e.target.value)
                     })
                   }
                   className="input-field"
@@ -133,11 +136,11 @@ const Settings = () => {
                   type="number"
                   min="-50"
                   max="100"
-                  value={localConfig.temperature.max}
+                  value={localConfig.maxTemperature}
                   onChange={(e) =>
                     setLocalConfig({
                       ...localConfig,
-                      temperature: { ...localConfig.temperature, max: Number(e.target.value) }
+                      maxTemperature: Number(e.target.value)
                     })
                   }
                   className="input-field"
@@ -159,11 +162,11 @@ const Settings = () => {
                 type="number"
                 min="0"
                 max="100"
-                value={localConfig.waterLevel.min}
+                value={localConfig.minWaterLevel}
                 onChange={(e) =>
                   setLocalConfig({
                     ...localConfig,
-                    waterLevel: { min: Number(e.target.value) }
+                    minWaterLevel: Number(e.target.value)
                   })
                 }
                 className="input-field"

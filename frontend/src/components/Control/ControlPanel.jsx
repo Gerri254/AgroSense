@@ -50,14 +50,14 @@ const ControlPanel = () => {
             <p className="text-xs text-gray-600 mb-1">Soil Moisture</p>
             <p className="text-2xl font-bold text-blue-600">{sensorData.soilMoisture.toFixed(0)}%</p>
             <p className="text-xs text-gray-500 mt-1">
-              Target: {config.soilMoisture.min}-{config.soilMoisture.max}%
+              Min: {config.minSoilMoisture}%
             </p>
           </div>
           <div className="text-center p-3 bg-orange-50 rounded-lg">
             <p className="text-xs text-gray-600 mb-1">Temperature</p>
             <p className="text-2xl font-bold text-orange-600">{sensorData.temperature.toFixed(1)}°C</p>
             <p className="text-xs text-gray-500 mt-1">
-              Max: {config.temperature.max}°C
+              Max: {config.maxTemperature}°C
             </p>
           </div>
           <div className="text-center p-3 bg-cyan-50 rounded-lg">
@@ -68,7 +68,7 @@ const ControlPanel = () => {
             <p className="text-xs text-gray-600 mb-1">Water Level</p>
             <p className="text-2xl font-bold text-indigo-600">{sensorData.waterLevel.toFixed(0)}%</p>
             <p className="text-xs text-gray-500 mt-1">
-              Min: {config.waterLevel.min}%
+              Min: {config.minWaterLevel}%
             </p>
           </div>
         </div>
