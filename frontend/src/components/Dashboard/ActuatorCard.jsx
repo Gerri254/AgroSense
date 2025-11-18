@@ -2,7 +2,7 @@ import { Power } from 'lucide-react';
 import { getColorClasses } from '../../utils/colorClasses';
 
 // eslint-disable-next-line no-unused-vars
-const ActuatorCard = ({ title, status, mode, icon: Icon, color = 'blue', onToggle, disabled }) => {
+const ActuatorCard = ({ title, status, mode, icon: Icon, color = 'blue', onToggle, disabled, previewOnly = false }) => {
   const colors = getColorClasses(color);
   return (
     <div className={`card border-l-4 ${colors.border}`}>
@@ -26,8 +26,8 @@ const ActuatorCard = ({ title, status, mode, icon: Icon, color = 'blue', onToggl
         </div>
       </div>
 
-      {/* Control Button */}
-      {mode === 'manual' && (
+      {/* Control Button - Only show if not in preview mode */}
+      {!previewOnly && mode === 'manual' && (
         <button
           onClick={onToggle}
           disabled={disabled}
@@ -42,7 +42,7 @@ const ActuatorCard = ({ title, status, mode, icon: Icon, color = 'blue', onToggl
         </button>
       )}
 
-      {mode === 'auto' && (
+      {!previewOnly && mode === 'auto' && (
         <div className="mt-4 p-2 bg-blue-50 rounded-lg text-center">
           <p className="text-xs text-blue-700 font-medium">
             🤖 Automatic Mode Active

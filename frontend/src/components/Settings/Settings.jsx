@@ -28,16 +28,14 @@ const Settings = () => {
 
   const togglePumpMode = () => {
     const newMode = actuatorStatus.waterPump.mode === 'auto' ? 'manual' : 'auto';
-    if (newMode === 'auto') {
-      controlPump(false, 'auto');
-    }
+    // Send API request for both auto and manual mode
+    controlPump(actuatorStatus.waterPump.status, newMode);
   };
 
   const toggleFanMode = () => {
     const newMode = actuatorStatus.coolingFan.mode === 'auto' ? 'manual' : 'auto';
-    if (newMode === 'auto') {
-      controlFan(false, 'auto');
-    }
+    // Send API request for both auto and manual mode
+    controlFan(actuatorStatus.coolingFan.status, newMode);
   };
 
   return (

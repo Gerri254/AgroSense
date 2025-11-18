@@ -13,33 +13,30 @@ router.post('/pump/control', async (req, res) => {
       return res.status(400).json({ message: 'Status must be a boolean value' });
     }
 
-    // Publish command to MQTT
-    const command = {
-      device: 'pump',
+    // Update mode if switching to auto
+    if (mode === 'auto') {
+      mqttService.setActuatorMode('pump', 'auto');
+    } else if (mode === 'manual') {
+      mqttService.setActuatorMode('pump', 'manual');
+    }
+
+    // Use the unified control method
+    const result = await mqttService.controlActuator(
+      'pump',
       status,
       mode,
-      timestamp: new Date().toISOString()
-    };
-
-    mqttService.publish(
-      process.env.MQTT_TOPIC_PUMP_CMD || 'actuators/pump/command',
-      command
+      mode === 'manual' ? 'Manual control via dashboard' : 'Automatic control activated'
     );
 
-    // Log the action
-    await mqttService.logActuatorAction(
-      'water_pump',
-      status ? 'ON' : 'OFF',
-      mode,
-      req.user?.id || null,
-      `Manual control via dashboard`
-    );
-
-    res.json({
-      success: true,
-      message: `Pump turned ${status ? 'ON' : 'OFF'}`,
-      command
-    });
+    if (result.success) {
+      res.json({
+        success: true,
+        message: `Pump turned ${status ? 'ON' : 'OFF'} (${mode} mode)`,
+        mode: mqttService.getActuatorMode('pump')
+      });
+    } else {
+      res.status(500).json({ message: 'Failed to control pump', error: result.error });
+    }
   } catch (error) {
     console.error('Error controlling pump:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -55,33 +52,30 @@ router.post('/fan/control', async (req, res) => {
       return res.status(400).json({ message: 'Status must be a boolean value' });
     }
 
-    // Publish command to MQTT
-    const command = {
-      device: 'fan',
+    // Update mode if switching to auto
+    if (mode === 'auto') {
+      mqttService.setActuatorMode('fan', 'auto');
+    } else if (mode === 'manual') {
+      mqttService.setActuatorMode('fan', 'manual');
+    }
+
+    // Use the unified control method
+    const result = await mqttService.controlActuator(
+      'fan',
       status,
       mode,
-      timestamp: new Date().toISOString()
-    };
-
-    mqttService.publish(
-      process.env.MQTT_TOPIC_FAN_CMD || 'actuators/fan/command',
-      command
+      mode === 'manual' ? 'Manual control via dashboard' : 'Automatic control activated'
     );
 
-    // Log the action
-    await mqttService.logActuatorAction(
-      'cooling_fan',
-      status ? 'ON' : 'OFF',
-      mode,
-      req.user?.id || null,
-      `Manual control via dashboard`
-    );
-
-    res.json({
-      success: true,
-      message: `Fan turned ${status ? 'ON' : 'OFF'}`,
-      command
-    });
+    if (result.success) {
+      res.json({
+        success: true,
+        message: `Fan turned ${status ? 'ON' : 'OFF'} (${mode} mode)`,
+        mode: mqttService.getActuatorMode('fan')
+      });
+    } else {
+      res.status(500).json({ message: 'Failed to control fan', error: result.error });
+    }
   } catch (error) {
     console.error('Error controlling fan:', error);
     res.status(500).json({ message: 'Server error', error: error.message });

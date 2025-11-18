@@ -85,8 +85,7 @@ const Dashboard = () => {
             mode={actuatorStatus.waterPump.mode}
             icon={Zap}
             color="blue"
-            onToggle={() => controlPump(!actuatorStatus.waterPump.status)}
-            disabled={actuatorStatus.waterPump.mode === 'auto'}
+            previewOnly={true}
           />
           <ActuatorCard
             title="Cooling Fan"
@@ -94,8 +93,7 @@ const Dashboard = () => {
             mode={actuatorStatus.coolingFan.mode}
             icon={Fan}
             color="teal"
-            onToggle={() => controlFan(!actuatorStatus.coolingFan.status)}
-            disabled={actuatorStatus.coolingFan.mode === 'auto'}
+            previewOnly={true}
           />
         </div>
       </section>

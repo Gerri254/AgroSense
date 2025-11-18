@@ -71,6 +71,11 @@ class SocketService {
       this.notifyListeners('device-status', status);
     });
 
+    this.socket.on('actuator-mode-change', (data) => {
+      console.log('🔧 Actuator mode change:', data);
+      this.notifyListeners('actuator-mode-change', data);
+    });
+
     return this.socket;
   }
 

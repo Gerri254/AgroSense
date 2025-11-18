@@ -106,10 +106,30 @@ export const AppProvider = ({ children }) => {
 
       // Subscribe to actuator status
       socketService.on('actuator-status', (data) => {
-        setActuatorStatus({
-          waterPump: data.waterPump || { status: false, mode: 'auto' },
-          coolingFan: data.coolingFan || { status: false, mode: 'auto' }
-        });
+        setActuatorStatus(prev => ({
+          waterPump: {
+            ...prev.waterPump,
+            ...(data.waterPump || {}),
+            mode: data.waterPump?.mode || prev.waterPump?.mode || 'auto'
+          },
+          coolingFan: {
+            ...prev.coolingFan,
+            ...(data.coolingFan || {}),
+            mode: data.coolingFan?.mode || prev.coolingFan?.mode || 'auto'
+          }
+        }));
+      });
+
+      // Subscribe to actuator mode changes
+      socketService.on('actuator-mode-change', (data) => {
+        console.log('🔧 Mode change received:', data);
+        setActuatorStatus(prev => ({
+          ...prev,
+          [data.actuator === 'pump' ? 'waterPump' : 'coolingFan']: {
+            ...prev[data.actuator === 'pump' ? 'waterPump' : 'coolingFan'],
+            mode: data.mode
+          }
+        }));
       });
 
       // Subscribe to device status

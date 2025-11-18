@@ -10,9 +10,19 @@ class MQTTService {
     this.socketIO = null;
     this.thresholds = {
       minSoilMoisture: 30,
+      maxSoilMoisture: 70,
+      minTemperature: 15,
       maxTemperature: 35,
       minWaterLevel: 20,
       maxHumidity: 80
+    };
+    this.actuatorModes = {
+      pump: 'auto',  // 'auto' or 'manual'
+      fan: 'auto'    // 'auto' or 'manual'
+    };
+    this.actuatorStates = {
+      pump: false,
+      fan: false
     };
   }
 
@@ -25,6 +35,24 @@ class MQTTService {
   updateThresholds(newThresholds) {
     this.thresholds = { ...this.thresholds, ...newThresholds };
     console.log('📊 Thresholds updated:', this.thresholds);
+  }
+
+  // Set actuator mode (auto/manual)
+  setActuatorMode(actuator, mode) {
+    if (this.actuatorModes.hasOwnProperty(actuator)) {
+      this.actuatorModes[actuator] = mode;
+      console.log(`🔧 ${actuator} mode set to: ${mode}`);
+
+      // Emit mode change to WebSocket clients
+      if (this.socketIO) {
+        this.socketIO.emit('actuator-mode-change', { actuator, mode });
+      }
+    }
+  }
+
+  // Get actuator mode
+  getActuatorMode(actuator) {
+    return this.actuatorModes[actuator] || 'manual';
   }
 
   // Connect to MQTT broker
@@ -157,26 +185,51 @@ class MQTTService {
   async checkThresholds(data) {
     const alerts = [];
 
-    // Soil moisture check
-    if (data.soilMoisture !== undefined && data.soilMoisture < this.thresholds.minSoilMoisture) {
-      alerts.push({
-        type: 'critical',
-        message: `Soil moisture low: ${data.soilMoisture}%`,
-        sensorType: 'soil_moisture',
-        value: data.soilMoisture,
-        threshold: this.thresholds.minSoilMoisture
-      });
+    // Soil moisture check - AUTO CONTROL PUMP
+    if (data.soilMoisture !== undefined) {
+      if (data.soilMoisture < this.thresholds.minSoilMoisture) {
+        alerts.push({
+          type: 'critical',
+          message: `Soil moisture low: ${data.soilMoisture}%`,
+          sensorType: 'soil_moisture',
+          value: data.soilMoisture,
+          threshold: this.thresholds.minSoilMoisture
+        });
+
+        // Auto control: Turn ON pump if in auto mode
+        if (this.actuatorModes.pump === 'auto' && !this.actuatorStates.pump) {
+          await this.controlActuator('pump', true, 'automatic', 'Soil moisture below threshold');
+        }
+      } else if (data.soilMoisture >= (this.thresholds.maxSoilMoisture || 70)) {
+        // Auto control: Turn OFF pump if in auto mode and moisture is sufficient
+        if (this.actuatorModes.pump === 'auto' && this.actuatorStates.pump) {
+          await this.controlActuator('pump', false, 'automatic', 'Soil moisture reached target');
+        }
+      }
     }
 
-    // Temperature check
-    if (data.temperature !== undefined && data.temperature > this.thresholds.maxTemperature) {
-      alerts.push({
-        type: 'warning',
-        message: `Temperature high: ${data.temperature}°C`,
-        sensorType: 'temperature',
-        value: data.temperature,
-        threshold: this.thresholds.maxTemperature
-      });
+    // Temperature check - AUTO CONTROL FAN
+    if (data.temperature !== undefined) {
+      if (data.temperature > this.thresholds.maxTemperature) {
+        alerts.push({
+          type: 'warning',
+          message: `Temperature high: ${data.temperature}°C`,
+          sensorType: 'temperature',
+          value: data.temperature,
+          threshold: this.thresholds.maxTemperature
+        });
+
+        // Auto control: Turn ON fan if in auto mode
+        if (this.actuatorModes.fan === 'auto' && !this.actuatorStates.fan) {
+          await this.controlActuator('fan', true, 'automatic', 'Temperature above threshold');
+        }
+      } else if (data.temperature <= (this.thresholds.minTemperature || 15)) {
+        // Auto control: Turn OFF fan if in auto mode and temperature cooled down
+        // Uses minTemperature as the "turn off" threshold (hysteresis)
+        if (this.actuatorModes.fan === 'auto' && this.actuatorStates.fan) {
+          await this.controlActuator('fan', false, 'automatic', 'Temperature cooled to safe level');
+        }
+      }
     }
 
     // Water level check
@@ -226,14 +279,73 @@ class MQTTService {
     }
   }
 
+  // Control actuator (unified method)
+  async controlActuator(actuator, status, trigger = 'manual', reason = null) {
+    try {
+      // Update internal state
+      this.actuatorStates[actuator] = status;
+
+      // Publish MQTT command
+      const command = {
+        device: actuator,
+        status,
+        mode: this.actuatorModes[actuator],
+        timestamp: new Date().toISOString()
+      };
+
+      const topic = actuator === 'pump'
+        ? (process.env.MQTT_TOPIC_PUMP_CMD || 'actuators/pump/command')
+        : (process.env.MQTT_TOPIC_FAN_CMD || 'actuators/fan/command');
+
+      this.publish(topic, command);
+
+      // Log the action
+      await this.logActuatorAction(
+        actuator === 'pump' ? 'water_pump' : 'cooling_fan',
+        status ? 'ON' : 'OFF',
+        trigger,
+        null,
+        reason || `${trigger} control`
+      );
+
+      console.log(`🤖 AUTO: ${actuator} turned ${status ? 'ON' : 'OFF'} - ${reason}`);
+
+      return { success: true, actuator, status, trigger };
+    } catch (error) {
+      console.error(`❌ Error controlling ${actuator}:`, error.message);
+      return { success: false, error: error.message };
+    }
+  }
+
   // Handle actuator status updates
   async handleActuatorStatus(data) {
     try {
       console.log('🔧 Actuator status updated:', data);
 
+      // Transform ESP8266 format to frontend format
+      let statusUpdate = {};
+
+      if (data.device) {
+        // ESP8266 sends: { device: "pump", status: true }
+        // Transform to: { waterPump: { status: true, mode: <current mode> } }
+        const actuatorName = data.device === 'pump' ? 'waterPump' : 'coolingFan';
+        const currentMode = this.actuatorModes[data.device] || 'auto';
+
+        statusUpdate[actuatorName] = {
+          status: data.status,
+          mode: currentMode
+        };
+
+        // Update internal state
+        this.actuatorStates[data.device] = data.status;
+      } else {
+        // Already in correct format (from backend itself)
+        statusUpdate = data;
+      }
+
       // Emit to WebSocket clients
       if (this.socketIO) {
-        this.socketIO.emit('actuator-status', data);
+        this.socketIO.emit('actuator-status', statusUpdate);
       }
     } catch (error) {
       console.error('❌ Error handling actuator status:', error.message);

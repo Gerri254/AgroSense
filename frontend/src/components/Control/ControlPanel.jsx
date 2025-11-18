@@ -6,23 +6,22 @@ const ControlPanel = () => {
   const { actuatorStatus, controlPump, controlFan, sensorData, config } = useApp();
   const [showConfirm, setShowConfirm] = useState(null);
 
-  const handlePumpToggle = () => {
+  const handlePumpControl = (targetStatus) => {
     if (actuatorStatus.waterPump.mode === 'auto') {
       alert('Cannot manually control pump in automatic mode. Switch to manual mode in settings.');
       return;
     }
-    const newStatus = !actuatorStatus.waterPump.status;
-    controlPump(newStatus, 'manual');
+    controlPump(targetStatus, 'manual');
     setShowConfirm(null);
   };
 
-  const handleFanToggle = () => {
+  const handleFanControl = (targetStatus) => {
     if (actuatorStatus.coolingFan.mode === 'auto') {
       alert('Cannot manually control fan in automatic mode. Switch to manual mode in settings.');
       return;
     }
-    const newStatus = !actuatorStatus.coolingFan.status;
-    controlFan(newStatus, 'manual');
+    console.log('🎯 Fan control called with targetStatus:', targetStatus);
+    controlFan(targetStatus, 'manual');
     setShowConfirm(null);
   };
 
@@ -194,10 +193,12 @@ const ControlPanel = () => {
             <div className="flex space-x-3">
               <button
                 onClick={() => {
+                  const targetStatus = showConfirm.includes('on');
+                  console.log('🔍 Confirm clicked. showConfirm:', showConfirm, 'targetStatus:', targetStatus);
                   if (showConfirm.includes('pump')) {
-                    handlePumpToggle();
+                    handlePumpControl(targetStatus);
                   } else {
-                    handleFanToggle();
+                    handleFanControl(targetStatus);
                   }
                 }}
                 className="flex-1 btn-primary"
@@ -210,8 +211,7 @@ const ControlPanel = () => {
               >
                 Cancel
               </button>
-            </div>
-          </div>
+            </div>          </div>
         </div>
       )}
     </div>
