@@ -11,7 +11,8 @@ const ControlPanel = () => {
       alert('Cannot manually control pump in automatic mode. Switch to manual mode in settings.');
       return;
     }
-    controlPump(targetStatus, 'manual');
+    // Don't pass mode - just control the pump in current mode
+    controlPump(targetStatus);
     setShowConfirm(null);
   };
 
@@ -20,7 +21,8 @@ const ControlPanel = () => {
       alert('Cannot manually control fan in automatic mode. Switch to manual mode in settings.');
       return;
     }
-    controlFan(targetStatus, 'manual');
+    // Don't pass mode - just control the fan in current mode
+    controlFan(targetStatus);
     setShowConfirm(null);
   };
 

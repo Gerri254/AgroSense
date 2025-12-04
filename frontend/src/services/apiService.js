@@ -120,12 +120,20 @@ class APIService {
   }
 
   // Actuators
-  async controlPump(status, mode = 'manual') {
-    return this.post(API_CONFIG.ENDPOINTS.PUMP_CONTROL, { status, mode });
+  async controlPump(status, mode) {
+    const payload = { status };
+    if (mode !== undefined) {
+      payload.mode = mode;
+    }
+    return this.post(API_CONFIG.ENDPOINTS.PUMP_CONTROL, payload);
   }
 
-  async controlFan(status, mode = 'manual') {
-    return this.post(API_CONFIG.ENDPOINTS.FAN_CONTROL, { status, mode });
+  async controlFan(status, mode) {
+    const payload = { status };
+    if (mode !== undefined) {
+      payload.mode = mode;
+    }
+    return this.post(API_CONFIG.ENDPOINTS.FAN_CONTROL, payload);
   }
 
   async getActuatorLogs(params = {}) {

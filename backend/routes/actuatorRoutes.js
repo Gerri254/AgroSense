@@ -7,32 +7,36 @@ const router = express.Router();
 // Control water pump
 router.post('/pump/control', async (req, res) => {
   try {
-    const { status, mode = 'manual' } = req.body;
+    const { status, mode } = req.body;
 
     if (typeof status !== 'boolean') {
       return res.status(400).json({ message: 'Status must be a boolean value' });
     }
 
-    // Update mode if switching to auto
-    if (mode === 'auto') {
-      mqttService.setActuatorMode('pump', 'auto');
-    } else if (mode === 'manual') {
-      mqttService.setActuatorMode('pump', 'manual');
+    // Only update mode if explicitly provided
+    if (mode !== undefined) {
+      if (mode === 'auto' || mode === 'manual') {
+        mqttService.setActuatorMode('pump', mode);
+      }
     }
+
+    // Get the current mode (may have been just updated, or use existing)
+    const currentMode = mqttService.getActuatorMode('pump');
+    const trigger = currentMode === 'manual' ? 'manual' : 'automatic';
 
     // Use the unified control method
     const result = await mqttService.controlActuator(
       'pump',
       status,
-      mode,
-      mode === 'manual' ? 'Manual control via dashboard' : 'Automatic control activated'
+      trigger,
+      trigger === 'manual' ? 'Manual control via dashboard' : 'Automatic control activated'
     );
 
     if (result.success) {
       res.json({
         success: true,
-        message: `Pump turned ${status ? 'ON' : 'OFF'} (${mode} mode)`,
-        mode: mqttService.getActuatorMode('pump')
+        message: `Pump turned ${status ? 'ON' : 'OFF'} (${currentMode} mode)`,
+        mode: currentMode
       });
     } else {
       res.status(500).json({ message: 'Failed to control pump', error: result.error });
@@ -46,32 +50,36 @@ router.post('/pump/control', async (req, res) => {
 // Control cooling fan
 router.post('/fan/control', async (req, res) => {
   try {
-    const { status, mode = 'manual' } = req.body;
+    const { status, mode } = req.body;
 
     if (typeof status !== 'boolean') {
       return res.status(400).json({ message: 'Status must be a boolean value' });
     }
 
-    // Update mode if switching to auto
-    if (mode === 'auto') {
-      mqttService.setActuatorMode('fan', 'auto');
-    } else if (mode === 'manual') {
-      mqttService.setActuatorMode('fan', 'manual');
+    // Only update mode if explicitly provided
+    if (mode !== undefined) {
+      if (mode === 'auto' || mode === 'manual') {
+        mqttService.setActuatorMode('fan', mode);
+      }
     }
+
+    // Get the current mode (may have been just updated, or use existing)
+    const currentMode = mqttService.getActuatorMode('fan');
+    const trigger = currentMode === 'manual' ? 'manual' : 'automatic';
 
     // Use the unified control method
     const result = await mqttService.controlActuator(
       'fan',
       status,
-      mode,
-      mode === 'manual' ? 'Manual control via dashboard' : 'Automatic control activated'
+      trigger,
+      trigger === 'manual' ? 'Manual control via dashboard' : 'Automatic control activated'
     );
 
     if (result.success) {
       res.json({
         success: true,
-        message: `Fan turned ${status ? 'ON' : 'OFF'} (${mode} mode)`,
-        mode: mqttService.getActuatorMode('fan')
+        message: `Fan turned ${status ? 'ON' : 'OFF'} (${currentMode} mode)`,
+        mode: currentMode
       });
     } else {
       res.status(500).json({ message: 'Failed to control fan', error: result.error });
