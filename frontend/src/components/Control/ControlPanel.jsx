@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Power, Fan, Zap, RefreshCw, AlertCircle } from 'lucide-react';
+import { Power, Fan, Zap, AlertCircle } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 
 const ControlPanel = () => {
@@ -20,7 +20,6 @@ const ControlPanel = () => {
       alert('Cannot manually control fan in automatic mode. Switch to manual mode in settings.');
       return;
     }
-    console.log('🎯 Fan control called with targetStatus:', targetStatus);
     controlFan(targetStatus, 'manual');
     setShowConfirm(null);
   };
@@ -194,7 +193,6 @@ const ControlPanel = () => {
               <button
                 onClick={() => {
                   const targetStatus = showConfirm.includes('on');
-                  console.log('🔍 Confirm clicked. showConfirm:', showConfirm, 'targetStatus:', targetStatus);
                   if (showConfirm.includes('pump')) {
                     handlePumpControl(targetStatus);
                   } else {

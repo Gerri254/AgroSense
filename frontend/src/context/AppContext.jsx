@@ -76,7 +76,6 @@ export const AppProvider = ({ children }) => {
     try {
       // Check backend health
       const health = await apiService.checkHealth();
-      console.log('✅ Backend health:', health);
       setBackendConnected(health.status === 'OK');
 
       // Connect to WebSocket
@@ -122,7 +121,6 @@ export const AppProvider = ({ children }) => {
 
       // Subscribe to actuator mode changes
       socketService.on('actuator-mode-change', (data) => {
-        console.log('🔧 Mode change received:', data);
         setActuatorStatus(prev => ({
           ...prev,
           [data.actuator === 'pump' ? 'waterPump' : 'coolingFan']: {
@@ -147,6 +145,25 @@ export const AppProvider = ({ children }) => {
         };
         setAlerts(prev => [newAlert, ...prev].slice(0, 50));
         setLastAlert(newAlert);
+      });
+
+      // Subscribe to action logs
+      socketService.on('action-log', (log) => {
+        const newLog = {
+          id: log._id || `${log.timestamp}-${Date.now()}`,
+          ...log,
+          timestamp: log.timestamp
+        };
+        setActionLogs(prev => {
+          const updated = [newLog, ...prev].slice(0, 100);
+          // Store in localStorage
+          try {
+            localStorage.setItem('actionLogs', JSON.stringify(updated));
+          } catch (error) {
+            console.error('Failed to save action logs:', error);
+          }
+          return updated;
+        });
       });
 
       // Load initial data from backend
@@ -193,7 +210,11 @@ export const AppProvider = ({ children }) => {
       // Load action logs
       const logsResponse = await apiService.getActuatorLogs({ limit: 50 });
       if (logsResponse && logsResponse.data) {
-        setActionLogs(logsResponse.data);
+        const logsWithIds = logsResponse.data.map(log => ({
+          ...log,
+          id: log._id || log.id || `${log.timestamp}-${Math.random()}`
+        }));
+        setActionLogs(logsWithIds);
       }
 
     } catch (error) {
@@ -235,7 +256,12 @@ export const AppProvider = ({ children }) => {
     const storedLogs = localStorage.getItem('actionLogs');
     if (storedLogs) {
       try {
-        setActionLogs(JSON.parse(storedLogs));
+        const logs = JSON.parse(storedLogs);
+        const logsWithIds = logs.map(log => ({
+          ...log,
+          id: log.id || log._id || `${log.timestamp}-${Math.random()}`
+        }));
+        setActionLogs(logsWithIds);
       } catch (error) {
         console.error('Failed to load action logs:', error);
       }
@@ -246,7 +272,6 @@ export const AppProvider = ({ children }) => {
   const controlPump = async (status, mode = 'manual') => {
     try {
       const response = await apiService.controlPump(status, mode);
-      console.log('🚰 Pump control response:', response);
 
       // Update local state optimistically
       setActuatorStatus(prev => ({
@@ -264,7 +289,6 @@ export const AppProvider = ({ children }) => {
   const controlFan = async (status, mode = 'manual') => {
     try {
       const response = await apiService.controlFan(status, mode);
-      console.log('💨 Fan control response:', response);
 
       // Update local state optimistically
       setActuatorStatus(prev => ({
@@ -282,7 +306,6 @@ export const AppProvider = ({ children }) => {
   const updateConfig = async (newConfig) => {
     try {
       const response = await apiService.updateThresholds(newConfig);
-      console.log('⚙️  Config update response:', response);
 
       setConfig(newConfig);
 

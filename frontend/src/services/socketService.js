@@ -11,11 +11,8 @@ class SocketService {
   // Connect to WebSocket server
   connect() {
     if (this.socket) {
-      console.log('⚠️  Socket already connected');
       return this.socket;
     }
-
-    console.log('🔌 Connecting to WebSocket:', API_CONFIG.WS_URL);
 
     this.socket = io(API_CONFIG.WS_URL, {
       transports: ['websocket', 'polling'],
@@ -26,53 +23,45 @@ class SocketService {
 
     // Connection events
     this.socket.on('connect', () => {
-      console.log('✅ WebSocket connected:', this.socket.id);
       this.connected = true;
       this.notifyListeners('connection', { connected: true });
     });
 
-    this.socket.on('connected', (data) => {
-      console.log('📡 Server acknowledgment:', data);
+    this.socket.on('connected', () => {
+      // Server acknowledgment - no logging needed
     });
 
     this.socket.on('disconnect', () => {
-      console.log('⚠️  WebSocket disconnected');
       this.connected = false;
       this.notifyListeners('connection', { connected: false });
     });
 
     this.socket.on('error', (error) => {
-      console.error('❌ WebSocket error:', error);
+      console.error('WebSocket error:', error);
     });
 
     // Real-time data events
     this.socket.on('sensor-data', (data) => {
-      console.log('📊 Sensor data received:', data);
       this.notifyListeners('sensor-data', data);
     });
 
     this.socket.on('actuator-status', (data) => {
-      console.log('🔧 Actuator status:', data);
       this.notifyListeners('actuator-status', data);
     });
 
     this.socket.on('alert', (alert) => {
-      console.log('⚠️  Alert received:', alert);
       this.notifyListeners('alert', alert);
     });
 
     this.socket.on('action-log', (log) => {
-      console.log('📝 Action log:', log);
       this.notifyListeners('action-log', log);
     });
 
     this.socket.on('device-status', (status) => {
-      console.log('📱 Device status:', status);
       this.notifyListeners('device-status', status);
     });
 
     this.socket.on('actuator-mode-change', (data) => {
-      console.log('🔧 Actuator mode change:', data);
       this.notifyListeners('actuator-mode-change', data);
     });
 
@@ -115,7 +104,6 @@ class SocketService {
   // Emit event to server (optional - can also use REST API)
   emit(event, data) {
     if (!this.socket || !this.connected) {
-      console.warn('⚠️  Socket not connected, cannot emit:', event);
       return false;
     }
 
@@ -149,7 +137,6 @@ class SocketService {
       this.socket.disconnect();
       this.socket = null;
       this.connected = false;
-      console.log('🔌 WebSocket disconnected');
     }
   }
 

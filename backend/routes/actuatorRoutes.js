@@ -110,9 +110,21 @@ router.get('/logs', async (req, res) => {
       .limit(parseInt(limit))
       .populate('userId', 'username');
 
+    // Format logs with readable action text
+    const formattedLogs = logs.map(log => ({
+      _id: log._id,
+      id: log._id,
+      action: `${log.actuatorType === 'water_pump' ? 'Water Pump' : 'Cooling Fan'} ${log.action}`,
+      trigger: log.trigger,
+      timestamp: log.timestamp,
+      actuatorType: log.actuatorType,
+      reason: log.reason,
+      userId: log.userId
+    }));
+
     res.json({
-      count: logs.length,
-      data: logs
+      count: formattedLogs.length,
+      data: formattedLogs
     });
   } catch (error) {
     console.error('Error fetching actuator logs:', error);

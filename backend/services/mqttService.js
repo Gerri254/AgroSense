@@ -404,7 +404,15 @@ class MQTTService {
 
       // Emit to WebSocket clients
       if (this.socketIO) {
-        this.socketIO.emit('action-log', log);
+        // Convert Mongoose document to plain object with _id
+        const logData = {
+          _id: log._id.toString(),
+          action: `${actuatorType === 'water_pump' ? 'Water Pump' : 'Cooling Fan'} ${action}`,
+          trigger,
+          timestamp: log.timestamp,
+          ...log.toObject()
+        };
+        this.socketIO.emit('action-log', logData);
       }
 
       return log;
